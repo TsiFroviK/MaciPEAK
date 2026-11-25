@@ -7,6 +7,13 @@
 !/gui/
 !/gui/Builder.m
 !/gui/builder-icon.png
+!/gui/InstallUpdate.h
+!/gui/InstallUpdate.m
+!/gui/ReleaseUpdate.h
+!/gui/ReleaseUpdate.m
+!/gui/test-release-update.m
+!/gui/test-builder-language.m
+!/gui/test-install-update.m
 !/gui/Info.plist
 !/LICENSE
 !/README.md

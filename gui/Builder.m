@@ -1,11 +1,16 @@
 #import <AppKit/AppKit.h>
+#import "InstallUpdate.h"
+#import "ReleaseUpdate.h"
 #include <errno.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
 
 static NSString *L(NSString *english, NSString *russian) {
-    return [NSLocale.preferredLanguages.firstObject.lowercaseString hasPrefix:@"ru"] ? russian : english;
+    return [NSBundle.mainBundle.preferredLocalizations.firstObject isEqualToString:@"ru"] ? russian : english;
 }
+
+static NSString *const SkippedUpdateVersion = @"SkippedUpdateVersion";
+static NSString *const FormAfterUpdate = @"FormAfterUpdate";
 
 static NSInteger nativeArchitectureIndex(void) {
     int arm64 = 0;
@@ -65,7 +70,7 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
     return cut;
 }
 
-@interface Builder : NSObject <NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate>
+@interface Builder : NSObject <NSApplicationDelegate, NSWindowDelegate, NSTextFieldDelegate, NSMenuItemValidation>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) NSTextField *folder, *status, *logTitle;
 @property(nonatomic, strong) NSButton *browse, *disclosure, *build;
@@ -76,6 +81,8 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
 @property(nonatomic, strong) NSProgressIndicator *spinner;
 @property(nonatomic, strong) NSMutableString *pendingOutput;
 @property(nonatomic) BOOL busy, flushQueued, skippedOutput;
+@property(nonatomic) BOOL checkingUpdate, installingUpdate;
+@property(nonatomic, strong) MaciPEAKRelease *pendingUpdate;
 @end
 
 @implementation Builder
@@ -84,17 +91,33 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
     self.pendingOutput = [NSMutableString string];
     [self installMenus];
     [self makeWindow];
+    NSDictionary *form = [NSUserDefaults.standardUserDefaults dictionaryForKey:FormAfterUpdate];
+    if (form) {
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:FormAfterUpdate];
+        NSString *folder = form[@"folder"];
+        NSInteger architecture = [form[@"architecture"] integerValue];
+        if ([folder isKindOfClass:NSString.class]) self.folder.stringValue = folder;
+        if (architecture >= 0 && architecture < self.architecture.numberOfItems)
+            [self.architecture selectItemAtIndex:architecture];
+        [self updateControls];
+    }
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];
     [self.window makeFirstResponder:self.folder];
     if (@available(macOS 14.0, *)) [NSApp activate];
     else [NSApp activateIgnoringOtherApps:YES];
+    [self checkForUpdateManually:NO];
 }
 
 - (void)installMenus {
     NSMenu *bar = [NSMenu new];
-    NSMenuItem *appItem = [bar addItemWithTitle:@"MaciPEAK" action:NULL keyEquivalent:@""];
-    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"MaciPEAK"];
+    NSString *name = @"MaciPEAK Builder";
+    NSMenuItem *appItem = [bar addItemWithTitle:name action:NULL keyEquivalent:@""];
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:name];
+    NSMenuItem *updates = [appMenu addItemWithTitle:L(@"Check for Updates…", @"Проверить обновления…")
+                                           action:@selector(checkForUpdates:) keyEquivalent:@""];
+    updates.target = self;
+    [appMenu addItem:NSMenuItem.separatorItem];
     [appMenu addItemWithTitle:L(@"Quit MaciPEAK", @"Завершить MaciPEAK")
                        action:@selector(terminate:) keyEquivalent:@"q"];
     appItem.submenu = appMenu;
@@ -110,6 +133,116 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
     [menu addItemWithTitle:L(@"Select All", @"Выбрать всё") action:@selector(selectAll:) keyEquivalent:@"a"];
     editItem.submenu = menu;
     NSApp.mainMenu = bar;
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    return !self.busy && !self.checkingUpdate && !self.window.attachedSheet;
+}
+
+- (void)checkForUpdates:(id)sender {
+    [self checkForUpdateManually:YES];
+}
+
+- (void)checkForUpdateManually:(BOOL)manual {
+    if (self.checkingUpdate || self.busy || self.window.attachedSheet) return;
+    self.checkingUpdate = YES;
+    NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    if (manual) [self.spinner startAnimation:nil];
+    MaciPEAKCheckForUpdate(version, ^(MaciPEAKRelease *release, NSError *error) {
+        self.checkingUpdate = NO;
+        if (manual && !self.busy) [self.spinner stopAnimation:nil];
+        if (error) NSLog(@"MaciPEAK update check: %@", error.localizedDescription);
+        if (release) {
+            if (!manual && [release.version isEqualToString:[NSUserDefaults.standardUserDefaults stringForKey:SkippedUpdateVersion]])
+                return;
+            self.pendingUpdate = release;
+            [self presentPendingUpdate];
+        } else if (manual && !self.busy && !self.window.attachedSheet) {
+            [self updateNotice:error ? L(@"Couldn’t check for updates", @"Не удалось проверить обновления") :
+                                       L(@"MaciPEAK Builder is up to date", @"Установлена последняя версия MaciPEAK Builder")
+                       details:error ? L(@"Try again later or open GitHub Releases.", @"Повторите попытку позже или откройте релизы на GitHub.") :
+                                       [NSString stringWithFormat:L(@"Installed version: %@", @"Установленная версия: %@"), version]
+                       releases:error != nil];
+        }
+    });
+}
+
+- (void)updateNotice:(NSString *)title details:(NSString *)details releases:(BOOL)showReleases {
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = title;
+    alert.informativeText = details;
+    [alert addButtonWithTitle:L(@"OK", @"OK")];
+    if (showReleases) [alert addButtonWithTitle:L(@"Open Releases", @"Открыть релизы")];
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result == NSAlertSecondButtonReturn)
+            [NSWorkspace.sharedWorkspace openURL:[NSURL URLWithString:@"https://github.com/TsiFroviK/MaciPEAK/releases/latest"]];
+    }];
+}
+
+- (void)presentPendingUpdate {
+    if (self.busy || self.window.attachedSheet || !self.pendingUpdate || !self.window.isVisible) return;
+    MaciPEAKRelease *release = self.pendingUpdate;
+    self.pendingUpdate = nil;
+    NSString *version = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = L(@"A MaciPEAK Builder update is available", @"Доступно обновление MaciPEAK Builder");
+    alert.informativeText = [NSString stringWithFormat:L(@"%@ → %@\n\nThe builder will install the update and restart.",
+                                                         @"%@ → %@\n\nСборщик установит обновление и перезапустится."),
+                             version, release.version];
+    [alert addButtonWithTitle:L(@"Update", @"Обновить")];
+    [alert addButtonWithTitle:L(@"Later", @"Позже")].keyEquivalent = @"\033";
+    [alert addButtonWithTitle:L(@"Skip This Version", @"Не напоминать")];
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result == NSAlertFirstButtonReturn) [self startUpdate:release];
+        if (result == NSAlertThirdButtonReturn)
+            [NSUserDefaults.standardUserDefaults setObject:release.version forKey:SkippedUpdateVersion];
+    }];
+}
+
+- (void)windowDidEndSheet:(NSNotification *)notification {
+    dispatch_async(dispatch_get_main_queue(), ^{ [self presentPendingUpdate]; });
+}
+
+- (void)startUpdate:(MaciPEAKRelease *)release {
+    if (self.busy) return;
+    self.busy = self.installingUpdate = YES;
+    [self updateControls];
+    [self.spinner startAnimation:nil];
+    [self showStatus:L(@"Downloading update…", @"Загрузка обновления…") color:NSColor.secondaryLabelColor];
+    MaciPEAKDownloadUpdate(release, ^(NSURL *dmgURL, NSError *error) {
+        if (error) {
+            [self updateFailed:error];
+            return;
+        }
+        [self showStatus:L(@"Installing update…", @"Установка обновления…") color:NSColor.secondaryLabelColor];
+        NSUserDefaults *preferences = NSUserDefaults.standardUserDefaults;
+        [preferences setObject:@{@"folder":self.folder.stringValue, @"architecture":@(self.architecture.indexOfSelectedItem)}
+                        forKey:FormAfterUpdate];
+        MPInstallUpdate(dmgURL, release.version, NSBundle.mainBundle.bundleURL, ^(NSError *installError) {
+            [NSFileManager.defaultManager removeItemAtURL:dmgURL.URLByDeletingLastPathComponent error:NULL];
+            if (installError) {
+                [preferences removeObjectForKey:FormAfterUpdate];
+                [self updateFailed:installError];
+                return;
+            }
+            self.busy = self.installingUpdate = NO;
+            [NSApp terminate:nil];
+        });
+    });
+}
+
+- (void)updateFailed:(NSError *)error {
+    NSLog(@"MaciPEAK update installation: %@", error.localizedDescription);
+    self.installingUpdate = NO;
+    NSString *title = L(@"Couldn’t install the update", @"Не удалось установить обновление");
+    [self finish:title success:NO];
+    BOOL readOnly = [error.domain isEqualToString:MPInstallUpdateErrorDomain] &&
+                    error.code == MPInstallUpdateDestinationNotWritable;
+    NSString *details = readOnly ? L(@"Move MaciPEAK Builder to Applications or another folder you can write to, then try again.",
+                                      @"Скопируйте MaciPEAK Builder в «Программы» или другую доступную для записи папку и повторите попытку.") :
+                                   L(@"Try again or download the new version from GitHub Releases.",
+                                      @"Повторите попытку или скачайте новую версию из релизов на GitHub.");
+    [self updateNotice:title details:details releases:YES];
 }
 
 - (void)makeWindow {
@@ -318,6 +451,7 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
     [self.spinner stopAnimation:nil];
     [self updateControls];
     [self showStatus:text color:success ? NSColor.labelColor : NSColor.systemRedColor];
+    dispatch_async(dispatch_get_main_queue(), ^{ [self presentPendingUpdate]; });
 }
 
 - (void)startBuild:(id)sender {
@@ -461,9 +595,11 @@ static NSUInteger prefixToTrim(NSString *text, NSUInteger limit) {
     if (!self.busy) return YES;
     if (!self.window.attachedSheet) {
         NSAlert *alert = [NSAlert new];
-        alert.messageText = L(@"A build is running", @"Идёт сборка");
-        alert.informativeText = L(@"This window can close when the build finishes.", @"Окно можно будет закрыть после завершения сборки.");
-        [alert addButtonWithTitle:L(@"Continue building", @"Продолжить сборку")];
+        alert.messageText = self.installingUpdate ? L(@"An update is running", @"Идёт обновление") :
+                                                   L(@"A build is running", @"Идёт сборка");
+        alert.informativeText = self.installingUpdate ? L(@"This window can close when the update finishes.", @"Окно можно будет закрыть после обновления.") :
+                                                       L(@"This window can close when the build finishes.", @"Окно можно будет закрыть после завершения сборки.");
+        [alert addButtonWithTitle:L(@"OK", @"OK")];
         [alert beginSheetModalForWindow:self.window completionHandler:nil];
     }
     return NO;

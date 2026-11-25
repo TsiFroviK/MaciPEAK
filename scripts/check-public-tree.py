@@ -15,7 +15,9 @@ ICON_SHA256 = "70f1ab28d4e94248cf7b448ef3f6e7a49e7cc26ce80988ed59cb2fc8b845aad6"
 TOP_LEVEL = {
     ".gitattributes", ".gitignore", "build.sh", "LICENSE", "README.md",
     "README.ru.md", "THIRD_PARTY.md", ".github/workflows/check.yml",
-    "gui/Builder.m", "gui/Info.plist",
+    "gui/Builder.m", "gui/Info.plist", "gui/InstallUpdate.h", "gui/InstallUpdate.m",
+    "gui/ReleaseUpdate.h", "gui/ReleaseUpdate.m", "gui/test-release-update.m", "gui/test-builder-language.m",
+    "gui/test-install-update.m",
 }
 SOURCE_PATH = re.compile(
     r"(?:scripts/[\w.-]+\.(?:c|cs|m|mk|py|sh|sha256)"

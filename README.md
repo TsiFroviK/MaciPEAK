@@ -13,7 +13,9 @@ Build a native macOS `PEAK.app` from your own Windows Steam installation of **PE
 3. Choose the Windows folder containing `PEAK.exe`, then click **Build**. Under **Advanced options**, you can select Apple silicon, Intel, or a universal game for both. The default matches the physical Mac running the builder.
 4. When the build finishes, open **Steam → Library → PEAK → Play**. The app uses the same build script as the Terminal instructions below.
 
-MaciPEAK Builder 1.0.1 is locally signed and has no Apple notarization ticket. If macOS asks for approval on first launch, follow [Apple’s guide to opening downloaded apps](https://support.apple.com/en-us/102445).
+The builder checks GitHub Releases for updates at startup. You can also choose **Check for Updates…** from the **MaciPEAK Builder** menu. Copy the builder to **Applications** before updating. Choose **Update** to install and restart the builder, **Later** to defer, or **Skip This Version** to stop automatic reminders for that release.
+
+The published builder uses a local signature. If macOS asks for approval on first launch, follow [Apple’s guide to opening downloaded apps](https://support.apple.com/en-us/102445).
 
 To rebuild an existing port, quit PEAK and move the old `PEAK.app` from `steamapps/common/PEAK` to a backup folder on the same volume first. Leave the Windows game folder and Steam files in place.
 
@@ -46,16 +48,6 @@ sh build.sh --register-steam
 ```
 
 To remove the local registration and keep your built app, run `sh build.sh --unregister-steam` with the same library. For the overlay, launch using the Steam **Play** button and press **Shift+Tab** after the title screen appears. The Steam overlay must be enabled in **Steam → Settings → In Game** and **PEAK → Properties → General**. On the M1, Play launched the arm64 app and successive presses opened and closed Steam's overlay. [Valve's overlay guide](https://help.steampowered.com/en/faqs/view/3978-072C-18DF-FBF9)
-
-### Render FPS and Metal HUD
-
-MaciPEAK sets `UNITY_DISPLAYLINK_BLIT=0` in the app environment before Unity starts. When launched from Steam or Finder, Apple's Metal HUD can report presentation rates above 60 FPS. Turn off VSync in PEAK and set the game's frame-rate limit above 60. Keep the system Metal HUD enabled.
-
-PEAK's VSync setting controls the game's Metal layer directly. This keeps Unity's simulation clock advancing at the correct rate in both display modes. Photon processes incoming messages on physics updates. When those updates stalled, the menu could show **Connecting…** and then **Disconnected** even after Steam had authenticated successfully.
-
-On a MacBook Air M1 with a 60 Hz panel, the previous presentation path produced about 60 FPS in the HUD even when Unity rendered faster. With the new path, Apple's HUD reported **78.85 FPS** with a **12.68 ms** frame interval in the foreground 640×360 window. With the game capped at 45 FPS it reported **44.97**. In an inactive window we also observed `inf` with a zero frame interval. Take comparative readings with the game in the foreground. [Apple's Metal HUD metrics](https://developer.apple.com/documentation/xcode/understanding-metal-performance-hud-metrics)
-
-For a separate count of frames rendered by Unity, enter `-macipeak-fps` under **PEAK → Properties → General → Launch Options**. It appears at the bottom left.
 
 ## What the builder obtains
 

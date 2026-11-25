@@ -27,7 +27,8 @@ mkdir -p "$contents/MacOS" "$payload/scripts" "$payload/tools" "$payload/license
 cp "$root/gui/Info.plist" "$contents/Info.plist"
 /usr/bin/plutil -lint "$contents/Info.plist"
 /usr/bin/xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 -fobjc-arc -Os \
-    -framework Cocoa "$root/gui/Builder.m" -o "$contents/MacOS/MaciPEAK Builder"
+    -framework Cocoa "$root/gui/Builder.m" "$root/gui/ReleaseUpdate.m" "$root/gui/InstallUpdate.m" \
+    -o "$contents/MacOS/MaciPEAK Builder"
 /usr/bin/lipo "$contents/MacOS/MaciPEAK Builder" -verify_arch arm64 x86_64
 
 icons="$work/MaciPEAK.iconset"

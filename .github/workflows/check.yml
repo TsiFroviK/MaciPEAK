@@ -26,6 +26,19 @@ jobs:
         run: python3 scripts/test-steam-install.py
       - name: Verify architecture selection
         run: sh scripts/test-arch.sh
+      - name: Test GitHub release metadata
+        run: |
+          xcrun clang -fobjc-arc -framework Foundation gui/ReleaseUpdate.m gui/test-release-update.m -o "$RUNNER_TEMP/test-release-update"
+          "$RUNNER_TEMP/test-release-update"
+      - name: Test English and Russian builder controls
+        run: |
+          fixture="$RUNNER_TEMP/TestBuilder.app/Contents"
+          mkdir -p "$fixture/MacOS"
+          cp gui/Info.plist "$fixture/Info.plist"
+          xcrun clang -fobjc-arc -framework Cocoa gui/test-builder-language.m \
+            gui/ReleaseUpdate.m gui/InstallUpdate.m -o "$fixture/MacOS/MaciPEAK Builder"
+          "$fixture/MacOS/MaciPEAK Builder" -AppleLanguages '(en-US)' -MPExpectedLanguage en
+          "$fixture/MacOS/MaciPEAK Builder" -AppleLanguages '(ru-RU)' -MPExpectedLanguage ru
       - name: Build and verify the release disk image
         run: |
           image="$RUNNER_TEMP/MaciPEAK-Builder-macOS.dmg"
@@ -37,3 +50,12 @@ jobs:
           app="$mountpoint/MaciPEAK Builder.app"
           codesign --verify --deep --strict --all-architectures "$app"
           lipo "$app/Contents/MacOS/MaciPEAK Builder" -verify_arch arm64 x86_64
+          xcrun clang -fobjc-arc -framework Cocoa gui/InstallUpdate.m gui/test-install-update.m -o "$RUNNER_TEMP/test-install-update"
+          "$RUNNER_TEMP/test-install-update" "$image" "$app" "$RUNNER_TEMP"
+      - name: Store the verified builder
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MaciPEAK-Builder-macOS
+          path: ${{ runner.temp }}/MaciPEAK-Builder-macOS.dmg
+          if-no-files-found: error
+          retention-days: 7
