@@ -1,0 +1,31 @@
+# This repository publishes the build recipe. Keep game inputs, downloads,
+# app bundles, logs and local test captures outside the index.
+*
+!/.gitattributes
+!/.gitignore
+!/build.sh
+!/gui/
+!/gui/Builder.m
+!/gui/builder-icon.png
+!/gui/Info.plist
+!/LICENSE
+!/README.md
+!/README.ru.md
+!/THIRD_PARTY.md
+!/docs/
+!/docs/macipeak-banner.png
+!/.github/
+!/.github/workflows/
+!/.github/workflows/check.yml
+!/licenses/
+!/licenses/*.txt
+!/tools/
+!/tools/*.py
+!/scripts/
+!/scripts/*.sh
+!/scripts/*.py
+!/scripts/*.m
+!/scripts/*.c
+!/scripts/*.cs
+!/scripts/*.mk
+!/scripts/*.sha256

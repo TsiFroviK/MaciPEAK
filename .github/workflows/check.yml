@@ -1,0 +1,39 @@
+name: Check builder sources
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check published files
+        run: python3 scripts/check-public-tree.py
+      - name: Check shell and Python syntax
+        run: |
+          for file in build.sh scripts/*.sh; do
+            /bin/sh -n "$file" || exit 1
+          done
+          python3 -m compileall -q scripts tools
+      - name: Read the builder help
+        run: /bin/sh build.sh --help
+      - name: Test Steam catalog and library registration
+        run: python3 scripts/test-steam-install.py
+      - name: Verify architecture selection
+        run: sh scripts/test-arch.sh
+      - name: Build and verify the release disk image
+        run: |
+          image="$RUNNER_TEMP/MaciPEAK-Builder-macOS.dmg"
+          mountpoint=$(mktemp -d "$RUNNER_TEMP/builder-volume.XXXXXXXX")
+          sh scripts/package-gui.sh "$image"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mountpoint" "$image"
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          test "$(readlink "$mountpoint/Applications")" = /Applications
+          app="$mountpoint/MaciPEAK Builder.app"
+          codesign --verify --deep --strict --all-architectures "$app"
+          lipo "$app/Contents/MacOS/MaciPEAK Builder" -verify_arch arm64 x86_64
