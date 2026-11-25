@@ -8,10 +8,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BANNER = "docs/macipeak-banner.png"
-BANNER_SHA256 = "187aba85befc973cb127ea3ef510257a44b0f0d21c5ec479682f3225d11dc5b5"
-ICON = "gui/builder-icon.png"
-ICON_SHA256 = "70f1ab28d4e94248cf7b448ef3f6e7a49e7cc26ce80988ed59cb2fc8b845aad6"
+PUBLIC_IMAGES = {
+    "docs/macipeak-banner.png": "187aba85befc973cb127ea3ef510257a44b0f0d21c5ec479682f3225d11dc5b5",
+    "docs/performance-banner.png": "fba1e3ce80b8c8baef84129c5f1bf5a0d6b2bd9aa0af6a3933d6911dba7b44ca",
+    "docs/macipeak-airport-m1.png": "8c6ae5d21c1be4c67c628ec9f03a46c36e1e7d4470c4ed4d617a76f12559915a",
+    "gui/builder-icon.png": "70f1ab28d4e94248cf7b448ef3f6e7a49e7cc26ce80988ed59cb2fc8b845aad6",
+}
 TOP_LEVEL = {
     ".gitattributes", ".gitignore", "build.sh", "LICENSE", "README.md",
     "README.ru.md", "THIRD_PARTY.md", ".github/workflows/check.yml",
@@ -43,11 +45,10 @@ def git(*args):
 def check_file(mode, oid, stage, name):
     if mode not in (b"100644", b"100755") or stage != b"0":
         return "expected a regular file with a resolved index entry"
-    if name in (BANNER, ICON):
+    if name in PUBLIC_IMAGES:
         content = git("cat-file", "blob", oid.decode("ascii"))
-        expected = BANNER_SHA256 if name == BANNER else ICON_SHA256
-        if mode != b"100644" or hashlib.sha256(content).hexdigest() != expected:
-            return "unexpected MaciPEAK artwork"
+        if mode != b"100644" or hashlib.sha256(content).hexdigest() != PUBLIC_IMAGES[name]:
+            return "unexpected MaciPEAK image"
         return None
     if name not in TOP_LEVEL and not SOURCE_PATH.fullmatch(name):
         return "path outside the published source list"
@@ -77,7 +78,7 @@ def main():
         problem = check_file(*metadata.split(), name)
         if problem:
             errors.append(f"{name}: {problem}")
-    for required in ("build.sh", "gui/Builder.m", "scripts/package-gui.sh", "README.md", "README.ru.md", BANNER, ICON):
+    for required in ("build.sh", "gui/Builder.m", "scripts/package-gui.sh", "README.md", "README.ru.md", *PUBLIC_IMAGES):
         if required not in seen:
             errors.append(f"{required}: missing from the Git index")
     if errors:

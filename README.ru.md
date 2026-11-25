@@ -6,6 +6,37 @@
 
 MaciPEAK собирает нативное приложение `PEAK.app` для macOS из вашей Windows-копии PEAK в Steam. Поддерживается **PEAK 3.1.0, BuildID 26542162**. Сборщик работает на Apple silicon и Intel. Проект неофициальный.
 
+## Производительность
+
+![+25% FPS more](docs/performance-banner.png)
+
+| Mac | CrossOver | MaciPEAK |
+| --- | ---: | ---: |
+| MacBook Air M1 | ~40 FPS | ~52 FPS |
+
+Примерная частота кадров в сцене аэропорта.
+
+<details>
+<summary>Настройки графики для сравнения</summary>
+
+| Настройка | Значение |
+| --- | --- |
+| Режим отображения | В окне |
+| Разрешение | 1440 × 900 |
+| Макс. частота кадров | 400 |
+| Верт. синхронизация | Выкл. |
+| Масштаб отображения | Среднее |
+| Дальность теней | Среднее |
+| Качество текстур | Наилучшее |
+| Качество мира | Среднее |
+| Фоновое затенение | Вкл. |
+
+</details>
+
+![Аэропорт в MaciPEAK на MacBook Air M1](docs/macipeak-airport-m1.png)
+
+*MaciPEAK Airport on M1*
+
 ## Сборка через приложение
 
 1. Скачайте и откройте [образ MaciPEAK Builder](https://github.com/TsiFroviK/MaciPEAK/releases/latest/download/MaciPEAK-Builder-macOS.dmg), перетащите **MaciPEAK Builder** в **Программы** и запустите его из этой папки. Скопируйте полную папку PEAK с Windows на Mac или подключённый диск.

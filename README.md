@@ -6,6 +6,37 @@
 
 Build a native macOS `PEAK.app` from your own Windows Steam installation of **PEAK 3.1.0, BuildID 26542162**. The builder supports Apple silicon and Intel. This is an unofficial community project.
 
+## Performance
+
+![+25% FPS more](docs/performance-banner.png)
+
+| Mac | CrossOver | MaciPEAK |
+| --- | ---: | ---: |
+| MacBook Air M1 | ~40 FPS | ~52 FPS |
+
+Approximate frame rates from the airport scene.
+
+<details>
+<summary>Graphics settings used for the comparison</summary>
+
+| Setting | Value |
+| --- | --- |
+| Window mode | Windowed |
+| Resolution | 1440 × 900 |
+| Max FPS | 400 |
+| VSync | Off |
+| Render scale | Medium |
+| Shadow distance | Medium |
+| Texture quality | Highest |
+| World quality | Medium |
+| Ambient occlusion | On |
+
+</details>
+
+![Airport scene in MaciPEAK on a MacBook Air M1](docs/macipeak-airport-m1.png)
+
+*MaciPEAK Airport on M1*
+
 ## With MaciPEAK Builder
 
 1. Open the [MaciPEAK Builder disk image](https://github.com/TsiFroviK/MaciPEAK/releases/latest/download/MaciPEAK-Builder-macOS.dmg), drag **MaciPEAK Builder** to **Applications**, then open it from Applications. Copy the complete Windows PEAK folder to the Mac or a connected drive.
