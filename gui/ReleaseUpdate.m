@@ -199,7 +199,7 @@ static NSURL *verifiedImage(MaciPEAKRelease *release, NSURL *location, NSError *
 }
 
 @interface ReleaseDownload : NSObject <NSURLSessionDownloadDelegate>
-@property(nonatomic, strong) MaciPEAKRelease *release;
+@property(nonatomic, strong) MaciPEAKRelease *update;
 @property(nonatomic, copy) void (^completion)(NSURL *, NSError *);
 @property(nonatomic, strong) NSURL *result;
 @property(nonatomic, strong) NSError *failure;
@@ -216,7 +216,7 @@ static NSURL *verifiedImage(MaciPEAKRelease *release, NSURL *location, NSError *
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)task
       didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)total
  totalBytesExpectedToWrite:(int64_t)expected {
-    if (total > (int64_t)self.release.size || expected > (int64_t)self.release.size) {
+    if (total > (int64_t)self.update.size || expected > (int64_t)self.update.size) {
         self.failure = releaseError(ReleaseErrorIntegrity, @"The download exceeds the published disk image size.");
         [task cancel];
     }
@@ -231,7 +231,7 @@ static NSURL *verifiedImage(MaciPEAKRelease *release, NSURL *location, NSError *
         return;
     }
     NSError *error = nil;
-    self.result = verifiedImage(self.release, location, &error);
+    self.result = verifiedImage(self.update, location, &error);
     self.failure = error;
 }
 
@@ -251,7 +251,7 @@ static NSURL *verifiedImage(MaciPEAKRelease *release, NSURL *location, NSError *
 
 void MaciPEAKDownloadUpdate(MaciPEAKRelease *release, void (^completion)(NSURL *, NSError *)) {
     ReleaseDownload *download = [ReleaseDownload new];
-    download.release = release;
+    download.update = release;
     download.completion = completion;
     NSURLSession *session = [NSURLSession sessionWithConfiguration:releaseSessionConfiguration(240)
                                                          delegate:download delegateQueue:nil];
