@@ -20,7 +20,8 @@ Usage: sh build.sh --game WINDOWS_PEAK [--steam-library DIR | --output PATH] [op
                    root or beside a standalone app)
   --python PATH    Use this Python 3.10+ interpreter
 By default, install in steamapps/common/PEAK and register the real PEAK Library entry.
-Steam briefly restarts to reload the install. Finish any running games first.
+Running again with a compatible PEAK.app repairs its registration without rebuilding.
+Steam opens after registration and restarts if it was running. Finish any running games first.
 Missing host tools and the matching Unity modules are downloaded as needed.
 Use an APFS or Mac OS Extended destination. Existing output is never replaced.
 EOF
@@ -57,6 +58,7 @@ steam_helper() {
 steam_running() { /usr/bin/pgrep -u "$(id -u)" -x steam_osx >/dev/null; }
 steam_change() {
     steam_action=$1
+    shift
     restart=no
     if steam_running; then
         printf '%s\n' 'Asking Steam to exit so it can reload the PEAK configuration.'
@@ -73,21 +75,21 @@ steam_change() {
         restart=yes
     fi
     result=0
-    steam_helper "$steam_action" || result=$?
-    if [ "$restart" = yes ]; then /usr/bin/open -g -b com.valvesoftware.steam || return 1; fi
+    steam_helper "$steam_action" "$@" || result=$?
+    if [ "$restart" = yes ] || { [ "$steam_action" = register ] && [ "$result" -eq 0 ]; }; then
+        /usr/bin/open -g -b com.valvesoftware.steam || return 1
+    fi
     return "$result"
 }
 if [ "$action" != build ]; then
     [ -z "$game$output$deps$cache$python$target_arch" ] && [ "$editor" = auto ] && [ "$support" = auto ] || fail 'Registration takes only --steam-library.'
     require_apple_tools
-    target=$(steam_helper path)
-    if [ "$action" = register-steam ] && [ ! -x "$target/Contents/MacOS/PEAK" ]; then
-        fail "Build PEAK.app in the selected Steam library first: $target"
-    fi
+    if [ "$action" = register-steam ]; then steam_helper inspect >/dev/null; fi
     steam_change "${action%-steam}"
     exit
 fi
 [ -n "$game" ] || { usage >&2; exit 2; }
+requested_arch=$target_arch
 target_arch=${target_arch:-universal}
 case $target_arch in arm64|x86_64|universal) ;; *) fail 'Choose --arch arm64, x86_64 or universal.' ;; esac
 game=$(cd "$game" && pwd -P)
@@ -132,7 +134,14 @@ output="$parent/$name"
 if [ "$steam_install" = yes ]; then
     workroot="$library/steamapps"
     default_cache="$library/.macipeak-cache"
-    [ ! -e "$output" ] && [ ! -L "$output" ] || fail "PEAK.app already exists: $output. To repair its Steam entry use --register-steam."
+    if [ -e "$output" ] || [ -L "$output" ]; then
+        set --
+        if [ -n "$requested_arch" ]; then set -- --expected-arch "$requested_arch"; fi
+        steam_helper inspect "$@" >/dev/null
+        printf 'Registering the existing PEAK.app at %s.\n' "$output"
+        steam_change register "$@"
+        exit
+    fi
 else
     case "$parent/" in "$game/"*) fail 'Choose an output outside the Windows installation.' ;; esac
     workroot="$parent"

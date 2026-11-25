@@ -11,13 +11,13 @@ Build a native macOS `PEAK.app` from your own Windows Steam installation of **PE
 1. Open the [MaciPEAK Builder disk image](https://github.com/TsiFroviK/MaciPEAK/releases/latest/download/MaciPEAK-Builder-macOS.dmg), drag **MaciPEAK Builder** to **Applications**, then open it from Applications. Copy the complete Windows PEAK folder to the Mac or a connected drive.
 2. Sign in to Steam on the Mac with the account that owns PEAK and open its Library page. Finish any running Steam games. Allow about 30 GB of free space beyond the Windows files on an APFS or Mac OS Extended volume.
 3. Choose the Windows folder containing `PEAK.exe`, then click **Build**. Under **Advanced options**, you can select Apple silicon, Intel, or a universal game for both. The default matches the physical Mac running the builder.
-4. When the build finishes, open **Steam → Library → PEAK → Play**. The app uses the same build script as the Terminal instructions below.
+4. MaciPEAK registers the build, then opens Steam or restarts it if it was already running. Choose **Library → PEAK → Play**. The app uses the same build script as the Terminal instructions below.
 
 The builder checks GitHub Releases for updates at startup. You can also choose **Check for Updates…** from the **MaciPEAK Builder** menu. Copy the builder to **Applications** before updating. Choose **Update** to install and restart the builder, **Later** to defer, or **Skip This Version** to stop automatic reminders for that release.
 
 The published builder uses a local signature. If macOS asks for approval on first launch, follow [Apple’s guide to opening downloaded apps](https://support.apple.com/en-us/102445).
 
-To rebuild an existing port, quit PEAK and move the old `PEAK.app` from `steamapps/common/PEAK` to a backup folder on the same volume first. Leave the Windows game folder and Steam files in place.
+If a compatible `PEAK.app` is already in the library, **Build** repairs its Steam registration. To rebuild its files, quit PEAK and first move the old `PEAK.app` from `steamapps/common/PEAK` to a backup folder on the same volume. Leave the Windows game folder and Steam files in place.
 
 ## Build on a Mac
 
@@ -33,7 +33,7 @@ The script builds a universal game by default. Add `--arch arm64` for Apple sili
 
 The default destination is `steamapps/common/PEAK/PEAK.app` in your Steam library. To select an external library, add `--steam-library "/Volumes/Games/SteamLibrary"`. An exFAT drive can hold the Windows input. For the library on that drive, use a mounted APFS disk image and mount it before starting Steam. For a standalone Finder build, pass `--output "/path/to/PEAK.app"` with an existing parent directory.
 
-4. Sign in to the Steam account that owns PEAK. Open **Library → PEAK → Play**. The builder asks a running Steam client to exit and then reopens it when registering the install. If Steam was closed, start it yourself. The game uses its retail AppID `3527290`. [PEAK on Steam](https://store.steampowered.com/app/3527290/PEAK/)
+4. The builder opens Steam after registering the game and restarts any running Steam client. Open **Library → PEAK → Play** in the Steam account that owns the game. The game uses its retail AppID `3527290`. [PEAK on Steam](https://store.steampowered.com/app/3527290/PEAK/)
 
 On first launch, PEAK opens in borderless fullscreen. To play in a window, select **Windowed** under **Settings → Graphics → Window Mode**. The game remembers this choice on later launches.
 
@@ -46,6 +46,8 @@ PEAK's publisher supplies Windows launch options. MaciPEAK adds a macOS launch o
 ```sh
 sh build.sh --register-steam
 ```
+
+If Steam queues a Windows update after testing PEAK with a compatibility tool such as CrossOver NotProton, turn off the forced tool in **PEAK → Properties → Compatibility**. Run the builder again to restore the native install and restart Steam.
 
 To remove the local registration and keep your built app, run `sh build.sh --unregister-steam` with the same library. For the overlay, launch using the Steam **Play** button and press **Shift+Tab** after the title screen appears. The Steam overlay must be enabled in **Steam → Settings → In Game** and **PEAK → Properties → General**. On the M1, Play launched the arm64 app and successive presses opened and closed Steam's overlay. [Valve's overlay guide](https://help.steampowered.com/en/faqs/view/3978-072C-18DF-FBF9)
 

@@ -20,6 +20,10 @@ from steam_appinfo import APP_ID, cache_path, patch_cache
 APP = str(APP_ID)
 MANIFEST = "appmanifest_%s.acf" % APP
 MARKER = ".macipeak-steam-manifest"
+MARKER_CONTENT = b"MaciPEAK local install v1\n"
+SUPPORTED_BUILD = "26542162"
+SUPPORTED_VERSION = "3.1.0"
+ARCHITECTURES = {"arm64": {"arm64"}, "x86_64": {"x86_64"}, "universal": {"arm64", "x86_64"}}
 TOKEN = re.compile(r'\s+|//[^\r\n]*|"(?:\\.|[^"\\])*"|[{}]')
 
 
@@ -91,6 +95,41 @@ def library_files(steam):
     return files
 
 
+def native_executable(app):
+    if app.resolve() != app:
+        raise ValueError("The MaciPEAK application is redirected by a symlink: %s" % app)
+    executable = app / "Contents/MacOS/PEAK"
+    plist_path = app / "Contents/Info.plist"
+    if executable.resolve() != executable or plist_path.resolve() != plist_path:
+        raise ValueError("The MaciPEAK application contains a redirected executable or Info.plist: %s" % app)
+    plist = plistlib.loads(plist_path.read_bytes())
+    if (not isinstance(plist, dict) or plist.get("CFBundleIdentifier") != "local.peak.macport"
+            or plist.get("CFBundleExecutable") != "PEAK"
+            or plist.get("CFBundleShortVersionString") != SUPPORTED_VERSION or not executable.is_file()):
+        raise ValueError("Expected a complete MaciPEAK %s application at %s" % (SUPPORTED_VERSION, app))
+    return executable
+
+
+def has_maci_peak(folder):
+    try:
+        native_executable(folder / "steamapps/common/PEAK/PEAK.app")
+    except (OSError, ValueError):
+        return False
+    return True
+
+
+def installed_architectures(app, expected=None):
+    executable = native_executable(app)
+    result = subprocess.run(["/usr/bin/lipo", "-archs", str(executable)], capture_output=True, text=True)
+    architectures = set(result.stdout.split())
+    if result.returncode or not architectures or not architectures <= ARCHITECTURES["universal"]:
+        raise ValueError("Could not read the PEAK executable's supported architectures.")
+    if expected and not ARCHITECTURES[expected] <= architectures:
+        raise ValueError("The existing PEAK.app has %s. To build for %s, move that app out of the Steam directory first."
+                         % (", ".join(sorted(architectures)), expected))
+    return architectures
+
+
 def choose_library(steam, requested, raw):
     _, libs = read_libraries(raw)
     installed = [p for p, (_, entry) in libs.items()
@@ -101,8 +140,13 @@ def choose_library(steam, requested, raw):
             raise ValueError("--steam-library expects the library root containing steamapps.")
         if folder.parts[1:2] == ("Volumes",) and (len(folder.parts) < 3 or not Path(*folder.parts[:3]).is_mount()):
             raise ValueError("The selected external Steam library volume is not mounted.")
+    elif installed:
+        folder = installed[0]
     else:
-        folder = installed[0] if installed else steam
+        candidates = [path for path in libs if has_maci_peak(path)]
+        if len(candidates) > 1:
+            raise ValueError("Found more than one unregistered MaciPEAK app. Choose its Steam library with --steam-library.")
+        folder = candidates[0] if candidates else steam
     if any(p.resolve() != folder for p in installed):
         raise ValueError("PEAK is registered in another Steam library: %s" % ", ".join(map(str, installed)))
     if not requested and not folder.is_dir():
@@ -155,8 +199,8 @@ def library_update(raw, folder, content_id, size, remove=False, label=""):
 def new_manifest(size):
     return ('"AppState"\n{\n\t"appid" "%s"\n\t"universe" "1"\n\t"name" "PEAK"\n'
             '\t"StateFlags" "4"\n\t"installdir" "PEAK"\n\t"SizeOnDisk" "%s"\n'
-            '\t"buildid" "26542162"\n\t"AutoUpdateBehavior" "0"\n}\n'
-            % (APP, size)).encode()
+            '\t"buildid" "%s"\n\t"AutoUpdateBehavior" "0"\n}\n'
+            % (APP, size, SUPPORTED_BUILD)).encode()
 
 
 def replace(path, data):
@@ -177,7 +221,7 @@ def replace(path, data):
             os.unlink(name)
 
 
-def register(steam, requested, files, remove):
+def register(steam, requested, files, remove, expected_arch=None):
     import fcntl
     fd = os.open(str(steam), os.O_RDONLY)
     try:
@@ -188,20 +232,7 @@ def register(steam, requested, files, remove):
         folder = choose_library(steam, requested, old[files[0]])
         base = folder / "steamapps/common/PEAK"
         app = base / "PEAK.app"
-        apple_silicon = False
-        if not remove:
-            plist = plistlib.loads((app / "Contents/Info.plist").read_bytes())
-            executable = app / "Contents/MacOS/PEAK"
-            if (app.is_symlink() or plist.get("CFBundleIdentifier") != "local.peak.macport"
-                    or plist.get("CFBundleExecutable") != "PEAK" or not executable.is_file()
-                    or executable.is_symlink()):
-                raise ValueError("Expected a complete MaciPEAK application at %s" % app)
-            slices = subprocess.run(["/usr/bin/lipo", "-archs", str(executable)],
-                                    capture_output=True, text=True)
-            architectures = set(slices.stdout.split())
-            if slices.returncode or not architectures or not architectures <= {"arm64", "x86_64"}:
-                raise ValueError("Could not read the PEAK executable's supported architectures.")
-            apple_silicon = "arm64" in architectures
+        apple_silicon = not remove and "arm64" in installed_architectures(app, expected_arch)
         cache = cache_path(steam / "appcache")
         old[cache] = cache.read_bytes()
         changes = {cache: patch_cache(old[cache], remove, apple_silicon=apple_silicon)}
@@ -209,18 +240,29 @@ def register(steam, requested, files, remove):
         marker = base / MARKER
         old[manifest] = manifest.read_bytes() if manifest.exists() else None
         old[marker] = marker.read_bytes() if marker.exists() else None
-        owned = old[marker] == b"MaciPEAK local install v1\n"
+        owned = old[marker] == MARKER_CONTENT
         if old[marker] is not None and not owned:
             raise ValueError("An unknown file occupies the MaciPEAK install marker path.")
+        repair_manifest = False
         if old[manifest] is not None:
             state = parse(document(old[manifest]))["AppState"][0]
             if state["appid"][0] != APP or state["installdir"][0] != "PEAK":
                 raise ValueError("Unexpected existing PEAK app manifest.")
-            if not remove and (state["buildid"][0] != "26542162" or state["StateFlags"][0] != "4"):
-                raise ValueError("The existing Steam PEAK install has a pending or different build.")
+            installed_depots = state.get("InstalledDepots", ({},))[0]
+            if not remove:
+                build = state["buildid"][0]
+                flags = int(state["StateFlags"][0])
+                target = state.get("TargetBuildID", (build,))[0]
+                # Steam can retain the pending Windows download after a user
+                # turns compatibility off. Restore only our own empty manifest.
+                update_progress = 0x100 | 0x200 | 0x400  # queued, paused, started
+                repair_manifest = (owned and installed_depots == {} and (flags & ~update_progress) == 0x6
+                                   and target in ("0", SUPPORTED_BUILD))
+                if build != SUPPORTED_BUILD or (flags != 4 and not repair_manifest):
+                    raise ValueError("The existing Steam PEAK install has a pending or different build.")
             # A subsequent regular Steam installation may adopt this directory.
             # Preserve its manifest and library membership when removing MaciPEAK.
-            if remove and owned and state.get("InstalledDepots", ({},))[0]:
+            if remove and owned and installed_depots:
                 changes[marker] = None
                 owned = False
         size = 0 if remove else sum(p.stat().st_size for p in app.rglob("*") if not p.is_symlink() and p.is_file())
@@ -241,8 +283,8 @@ def register(steam, requested, files, remove):
         if not remove or owned:
             for file in files:
                 changes[file] = library_update(old[file], folder, content_id, size, remove, label)
-            if not remove and old[manifest] is None:
-                changes[marker] = b"MaciPEAK local install v1\n"
+            if not remove and (old[manifest] is None or repair_manifest):
+                changes[marker] = MARKER_CONTENT
                 changes[manifest] = new_manifest(size)
             if remove and owned:
                 changes[manifest] = changes[marker] = None
@@ -280,17 +322,23 @@ def register(steam, requested, files, remove):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["path", "register", "unregister"])
+    parser.add_argument("action", choices=["path", "inspect", "register", "unregister"])
     parser.add_argument("--steam-library", metavar="DIR")
+    parser.add_argument("--expected-arch", choices=ARCHITECTURES)
     parser.add_argument("--steam-root", type=Path, default=Path.home() / "Library/Application Support/Steam")
     args = parser.parse_args()
+    if args.expected_arch and args.action not in ("inspect", "register"):
+        parser.error("--expected-arch requires inspect or register")
     steam = args.steam_root.expanduser().resolve()
     files = library_files(steam)
-    if args.action == "path":
+    if args.action in ("path", "inspect"):
         folder = choose_library(steam, args.steam_library, files[0].read_bytes())
-        print(folder / "steamapps/common/PEAK/PEAK.app")
+        app = folder / "steamapps/common/PEAK/PEAK.app"
+        if args.action == "inspect":
+            installed_architectures(app, args.expected_arch)
+        print(app)
     else:
-        register(steam, args.steam_library, files, args.action == "unregister")
+        register(steam, args.steam_library, files, args.action == "unregister", args.expected_arch)
 
 
 if __name__ == "__main__":

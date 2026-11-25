@@ -135,6 +135,7 @@ class LibraryTests(unittest.TestCase):
         (self.app / "Contents/MacOS/PEAK").write_bytes(b"sample")
         (self.app / "Contents/Info.plist").write_bytes(plistlib.dumps({
             "CFBundleExecutable": "PEAK", "CFBundleIdentifier": "local.peak.macport",
+            "CFBundleShortVersionString": "3.1.0",
         }))
         self.files = [self.steam / "config/libraryfolders.vdf", self.steam / "steamapps/libraryfolders.vdf"]
         for path in self.files:
@@ -181,6 +182,53 @@ class LibraryTests(unittest.TestCase):
         self.apply()
         self.apply(remove=True)
         self.assertEqual(self.manifest.read_bytes(), stock)
+
+    def test_recovers_owned_manifest_after_steam_schedules_an_update(self):
+        self.apply()
+        clean = self.manifest.read_bytes()
+        manifests = []
+        for flags in (b"6", b"518"):  # update required, then paused and update required
+            pending = clean.replace(b'"StateFlags" "4"', b'"StateFlags" "' + flags + b'"\n "InstalledDepots" {}')
+            self.manifest.write_bytes(pending)
+            self.apply()
+            self.assertEqual(self.manifest.read_bytes(), clean)
+            manifests.append(pending)
+        snapshots = list((self.lib / ".macipeak-steam-backup").glob("*appmanifest_*"))
+        self.assertCountEqual([path.read_bytes() for path in snapshots], manifests)
+
+    def test_refuses_to_reset_stock_pending_manifest_or_other_build(self):
+        pending = installer.new_manifest(22).replace(b'"StateFlags" "4"', b'"StateFlags" "6"')
+        self.manifest.write_bytes(pending)
+        with self.assertRaisesRegex(ValueError, "pending or different build"):
+            self.apply()
+        self.assertEqual(self.manifest.read_bytes(), pending)
+        (self.app.parent / installer.MARKER).write_bytes(installer.MARKER_CONTENT)
+        for state in (pending.replace(b'"26542162"', b'"1"'),
+                      pending.replace(b'"StateFlags" "6"', b'"StateFlags" "6"\n "InstalledDepots" { "1" {} }'),
+                      pending.replace(b'"StateFlags" "6"', b'"StateFlags" "6"\n "TargetBuildID" "1"')):
+            self.manifest.write_bytes(state)
+            with self.assertRaisesRegex(ValueError, "pending or different build"):
+                self.apply()
+            self.assertEqual(self.manifest.read_bytes(), state)
+
+    def test_finds_existing_native_app_when_steam_no_longer_lists_peaks_install(self):
+        self.apply()
+        self.apply(remove=True)
+        raw = self.files[0].read_bytes()
+        self.assertFalse(self.manifest.exists())
+        self.assertEqual(installer.choose_library(self.steam, None, raw), self.lib)
+        plist_path = self.app / "Contents/Info.plist"
+        plist = plistlib.loads(plist_path.read_bytes())
+        plist["CFBundleShortVersionString"] = "4.0.0"
+        plist_path.write_bytes(plistlib.dumps(plist))
+        self.assertEqual(installer.choose_library(self.steam, None, raw), self.steam)
+
+    def test_inspection_requires_the_requested_architecture(self):
+        self.assertEqual(installer.installed_architectures(self.app, "arm64"), {"arm64", "x86_64"})
+        self.architectures = "arm64"
+        self.assertEqual(installer.installed_architectures(self.app, "arm64"), {"arm64"})
+        with self.assertRaisesRegex(ValueError, "To build for universal"):
+            installer.installed_architectures(self.app, "universal")
 
     def test_active_steam_blocks_all_changes(self):
         self.steam_running = True
