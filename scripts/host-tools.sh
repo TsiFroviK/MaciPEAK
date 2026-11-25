@@ -13,6 +13,18 @@ require_apple_tools() {
     fail 'Install Apple Command Line Tools with xcode-select --install (or select an installed Xcode), finish the Apple installer, then run this command again.'
 }
 
+require_universal_macho() (
+    slices=$(/usr/bin/lipo -archs "$1") || exit 1
+    # Some Xcode releases reject multiple architecture names in -verify_arch.
+    case " $slices " in
+        *" arm64 "*)
+            case " $slices " in *" x86_64 "*) exit 0 ;; esac
+            ;;
+    esac
+    printf 'Expected arm64 and x86_64 in %s, found: %s\n' "$1" "$slices" >&2
+    exit 1
+)
+
 # Resolve missing directories before creating them, so --cache can never create
 # files under the Windows installation, including when a parent is a symlink.
 resolve_cache_path() (

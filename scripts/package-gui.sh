@@ -15,6 +15,7 @@ if [ -n "${MACIPEAK_NOTARY_PROFILE:-}" ] && [ -z "${MACIPEAK_SIGN_IDENTITY:-}" ]
     exit 2
 fi
 root=$(cd "$(dirname "$0")/.." && pwd -P)
+. "$root/scripts/host-tools.sh"
 work=$(mktemp -d "$(dirname "$output")/.macipeak-gui.XXXXXXXX")
 trap 'rm -rf "$work"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -29,7 +30,7 @@ cp "$root/gui/Info.plist" "$contents/Info.plist"
 /usr/bin/xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 -fobjc-arc -Os \
     -framework Cocoa "$root/gui/Builder.m" "$root/gui/ReleaseUpdate.m" "$root/gui/InstallUpdate.m" \
     -o "$contents/MacOS/MaciPEAK Builder"
-/usr/bin/lipo "$contents/MacOS/MaciPEAK Builder" -verify_arch arm64 x86_64
+require_universal_macho "$contents/MacOS/MaciPEAK Builder"
 
 icons="$work/MaciPEAK.iconset"
 mkdir "$icons"

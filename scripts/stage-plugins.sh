@@ -13,6 +13,7 @@ source_plugins="$game/PEAK_Data/Plugins/x86_64"
 managed="$app/Contents/Resources/Data/Managed"
 plugins="$app/Contents/PlugIns"
 here=$(cd "$(dirname "$0")" && pwd -P)
+. "$here/host-tools.sh"
 [ -f "$managed/PortningsbolagetMemory.dll" ] || fail 'missing staged PEAK Managed directory'
 work=$(mktemp -d "$(dirname "$app")/.peak-plugins.XXXXXX")
 trap 'rm -rf "$work"' EXIT
@@ -23,9 +24,6 @@ checksum() { shasum -a 256 "$1" | cut -d ' ' -f 1; }
 verify() { [ "$(checksum "$1")" = "$2" ] || fail "SHA-256 mismatch: $1"; }
 fetch() {
     "${PEAK_BUILD_PYTHON:-python3}" "$here/fetch-dependency.py" "${MACIPEAK_CACHE:-$work/cache}" "$deps" "$1" "$2" "$3"
-}
-require_slices() {
-    lipo "$1" -verify_arch arm64 x86_64 || fail "expected a universal macOS library: $1"
 }
 
 # Check the vendor ABI used by the input. Other SDK versions need their own bindings.
@@ -68,7 +66,6 @@ if [ -z "$compiler" ] && command -v dotnet >/dev/null 2>&1; then
     compiler=$("$host" --list-sdks | sed -nE 's/^([^ ]+) \[(.*)\]$/\2\/\1\/Roslyn\/bincore\/csc.dll/p' | tail -n 1)
 fi
 if [ ! -f "$compiler" ] || ! "$host" "$compiler" -nologo -version >/dev/null 2>&1; then
-    . "$here/host-tools.sh"
     : "${MACIPEAK_CACHE:=$work/cache}"
     bootstrap_csharp "$work" "$deps"
 fi
@@ -87,8 +84,8 @@ sh "$here/stage-display.sh" "$app" "$host" "$compiler"
         "-out:$work/com.rlabrecque.steamworks.net.dll" '-recurse:*.cs'
 )
 mkdir -p "$plugins" "$app/Contents/Resources/Licenses"
-require_slices "$sdk/Plugins/steam_api.bundle/Contents/MacOS/libsteam_api.dylib"
-require_slices "$eos_dylib"
+require_universal_macho "$sdk/Plugins/steam_api.bundle/Contents/MacOS/libsteam_api.dylib"
+require_universal_macho "$eos_dylib"
 cp "$work/com.rlabrecque.steamworks.net.dll" "$managed/"
 cp "$sdk/Plugins/steam_api.bundle/Contents/MacOS/libsteam_api.dylib" "$plugins/"
 cp "$sdk/LICENSE.md" "$app/Contents/Resources/Licenses/Steamworks.NET.md"
@@ -99,7 +96,7 @@ cp "$eos_notices" "$app/Contents/Resources/Licenses/EOS-ThirdPartySoftwareNotice
 cp "$eos_dylib" "$plugins/libEOSSDK-Win64-Shipping.dylib"
 xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -dynamiclib \
     -install_name @rpath/libMemoryWrapper-x64-Release.dylib "$here/eos-memory.c" -o "$plugins/libMemoryWrapper-x64-Release.dylib"
-require_slices "$plugins/libMemoryWrapper-x64-Release.dylib"
+require_universal_macho "$plugins/libMemoryWrapper-x64-Release.dylib"
 
 map_library() {
     cat > "$managed/$1.dll.config" <<EOF

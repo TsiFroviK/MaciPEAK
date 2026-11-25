@@ -6,6 +6,7 @@ game=$(cd "$1" && pwd -P)
 app=$(cd "$2" && pwd -P)
 deps=$3
 here=$(cd "$(dirname "$0")" && pwd -P)
+. "$here/host-tools.sh"
 managed="$app/Contents/Resources/Data/Managed"
 plugins="$app/Contents/PlugIns"
 licenses="$app/Contents/Resources/Licenses"
@@ -37,14 +38,14 @@ if [ ! -f "$work/libopus_egpv.dylib" ]; then
     cp "$src/libopus_egpv.dylib" "$work/"
     cp "$src/COPYING" "$licenses/Xiph-Opus-1.5.2.txt"
 fi
-lipo "$work/libopus_egpv.dylib" -verify_arch arm64 x86_64
+require_universal_macho "$work/libopus_egpv.dylib"
 "${PEAK_BUILD_PYTHON:-python3}" "$here/test-opus.py" "$work/libopus_egpv.dylib"
 cp "$work/libopus_egpv.dylib" "$plugins/"
 {
     echo '<configuration>'
     echo '  <dllmap os="osx" dll="opus_egpv" target="@executable_path/../PlugIns/libopus_egpv.dylib" />'
     if [ -f "$work/libwebrtc-audio.dylib" ]; then
-        lipo "$work/libwebrtc-audio.dylib" -verify_arch arm64 x86_64
+        require_universal_macho "$work/libwebrtc-audio.dylib"
         cp "$work/libwebrtc-audio.dylib" "$plugins/"
         echo '  <dllmap os="osx" dll="webrtc-audio" target="@executable_path/../PlugIns/libwebrtc-audio.dylib" />'
     else

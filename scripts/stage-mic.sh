@@ -9,6 +9,7 @@ host=$4
 compiler=$5
 package=$6
 here=$(cd "$(dirname "$0")" && pwd -P)
+. "$here/host-tools.sh"
 managed="$app/Contents/Resources/Data/Managed"
 plugins="$app/Contents/PlugIns"
 original="$game/PEAK_Data/Managed/PhotonVoice.dll"
@@ -25,7 +26,7 @@ actual=$(shasum -a 256 < "$package")
 xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -O2 -std=c11 -fobjc-arc -fblocks -dynamiclib \
     -install_name @rpath/libPeakMicConsent.dylib "$here/mic-consent.m" -framework AVFoundation -framework Foundation \
     -o "$work/libPeakMicConsent.dylib"
-lipo "$work/libPeakMicConsent.dylib" -verify_arch arm64 x86_64
+require_universal_macho "$work/libPeakMicConsent.dylib"
 # rename, rather than open/truncate existing files (also safe in a hard-linked test clone).
 cp "$work/libPeakMicConsent.dylib" "$plugins/libPeakMicConsent.dylib"
 cp "$work/PhotonVoice.dll" "$managed/PhotonVoice.mac-staged"

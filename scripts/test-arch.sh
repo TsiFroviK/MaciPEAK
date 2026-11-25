@@ -2,6 +2,7 @@
 # Exercise the same slice selection and code signatures used by PEAK.app.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd -P)
+. "$here/host-tools.sh"
 work=$(mktemp -d "${TMPDIR:-/tmp}/macipeak-arch.XXXXXXXX")
 trap 'rm -rf "$work"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -42,9 +43,9 @@ for selected in arm64 x86_64 universal; do
     for relative in MacOS/PEAK Frameworks/libFixture.dylib PlugIns/PluginWithoutExtension; do
         binary="$app/Contents/$relative"
         if [ "$selected" = universal ]; then
-            lipo "$binary" -verify_arch arm64 x86_64
+            require_universal_macho "$binary"
         else
-            [ "$(lipo -archs "$binary")" = "$selected" ]
+            [ "$(/usr/bin/lipo -archs "$binary")" = "$selected" ]
         fi
     done
     [ -L "$app/Contents/PlugIns/PluginAlias" ]
@@ -59,6 +60,10 @@ for selected in arm64 x86_64 universal; do
         fi
     done
 done
+if require_universal_macho "$work/arm64.app/Contents/MacOS/PEAK"; then
+    echo 'Accepted a thin binary in the universal library check' >&2
+    exit 1
+fi
 if sh "$here/stage-arch.sh" "$work/arm64.app" universal; then
     echo 'Accepted an incomplete universal player' >&2
     exit 1

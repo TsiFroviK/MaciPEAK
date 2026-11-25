@@ -4,6 +4,7 @@ set -eu
 [ "$#" -eq 3 ] || { echo 'Usage: stage-display.sh STAGED_APP DOTNET CSC_DLL' >&2; exit 2; }
 app=$(cd "$1" && pwd -P)
 here=$(cd "$(dirname "$0")" && pwd -P)
+. "$here/host-tools.sh"
 data="$app/Contents/Resources/Data"
 managed="$data/Managed"
 plugins="$app/Contents/PlugIns"
@@ -20,7 +21,7 @@ trap 'exit 1' HUP INT TERM
 /usr/bin/xcrun clang -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 -O2 -fobjc-arc -dynamiclib \
     -install_name "@rpath/$native" "$here/display-sync.m" -framework AppKit -framework QuartzCore \
     -framework Metal -o "$work/$native"
-/usr/bin/lipo "$work/$native" -verify_arch arm64 x86_64
+require_universal_macho "$work/$native"
 mkdir -p "$plugins"
 mv -f "$work/$assembly" "$managed/$assembly"
 mv -f "$work/$native" "$plugins/$native"
