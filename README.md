@@ -37,6 +37,8 @@ The default destination is `steamapps/common/PEAK/PEAK.app` in your Steam librar
 
 On first launch, PEAK opens in borderless fullscreen. To play in a window, select **Windowed** under **Settings → Graphics → Window Mode**. The game remembers this choice on later launches.
 
+On macOS, the **Medium** render scale draws the scene at 65% of the selected resolution per axis before Unity STP upscaling. This improves distant lettering while increasing GPU work at this preset.
+
 On macOS 14 or later, the builder asks Gatekeeper to scan the finished game in its installation folder. This moves the initial verification wait into the build. macOS can assess the game again if you move or change it.
 
 ### Steam registration and overlay

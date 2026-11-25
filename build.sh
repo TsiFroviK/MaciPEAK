@@ -211,6 +211,7 @@ done
 sh "$here/scripts/stage-bcl.sh" "$game" "$app" "$editor"
 sh "$here/scripts/stage-plugins.sh" "$game" "$app" "$deps"
 sh "$here/scripts/stage-graphics.sh" "$python" "$data" "$dest" "$cache" "$deps" "$work"
+"$python" "$here/scripts/stage-render-scale.py" "$dest/Managed/Assembly-CSharp.dll"
 
 # Steam's direct-launch convention uses the game's actual AppID. Library
 # initialization and account entitlement remain the responsibility of Steam.

@@ -46,7 +46,7 @@ cp "$root/build.sh" "$root/LICENSE" "$root/THIRD_PARTY.md" "$payload/"
 for name in bcl-6000.3.15f1.sha256 eos-memory.c extract-voice-sdk.py fetch-dependency.py host-tools.sh \
     mic-consent.m MicPatcher.cs opus-abi.c opus.mk RenderFps.cs DisplaySync.cs display-sync.m \
     register-initializer.py stage-arch.sh stage-bcl.sh stage-display.sh stage-fps.sh \
-    stage-graphics.sh stage-icon.py stage-mic.sh stage-player.sh stage-plugins.sh stage-voice.sh \
+    stage-graphics.sh stage-icon.py stage-mic.sh stage-player.sh stage-plugins.sh stage-render-scale.py stage-voice.sh \
     steam_appinfo.py steam-install.py test-opus.py unity-mono-profile.py xar-member.py; do
     cp "$root/scripts/$name" "$payload/scripts/"
 done
