@@ -37,9 +37,22 @@ Approximate frame rates from the airport scene.
 
 *MaciPEAK Airport on M1*
 
+## Get the Windows game files on a Mac
+
+If you have PEAK 3.1.0 (BuildID 26542162) installed on Windows, copy the complete `steamapps/common/PEAK` folder to your Mac or an external drive. You can also download the same Windows build directly through Steam on macOS.
+
+1. Open Steam on your Mac and sign in to the account that owns PEAK. To open Steam's **Console** tab, run `open 'steam://open/console'` in Terminal.
+2. Enter the following command in the **Steam Console**. It selects the Windows depot and pins the manifest for the supported build. Steam needs about 15.3 GiB for the downloaded files.
+
+   ```text
+   download_depot 3527290 3527291 719488143636267246
+   ```
+
+3. Wait for `Depot download complete`. Steam prints the full path to `depot_3527291`. Select that folder in MaciPEAK Builder or pass its path to `sh build.sh --game`. It should contain `PEAK.exe`, `version.txt` and `PEAK_Data`.
+
 ## With MaciPEAK Builder
 
-1. Open the [MaciPEAK Builder disk image](https://github.com/TsiFroviK/MaciPEAK/releases/latest/download/MaciPEAK-Builder-macOS.dmg), drag **MaciPEAK Builder** to **Applications**, then open it from Applications. Copy the complete Windows PEAK folder to the Mac or a connected drive.
+1. Open the [MaciPEAK Builder disk image](https://github.com/TsiFroviK/MaciPEAK/releases/latest/download/MaciPEAK-Builder-macOS.dmg), drag **MaciPEAK Builder** to **Applications**, then open it from Applications.
 2. Sign in to Steam on the Mac with the account that owns PEAK and open its Library page. Finish any running Steam games. Allow about 30 GB of free space beyond the Windows files on an APFS or Mac OS Extended volume.
 3. Choose the Windows folder containing `PEAK.exe`, then click **Build**. Under **Advanced options**, you can select Apple silicon, Intel, or a universal game for both. The default matches the physical Mac running the builder.
 4. MaciPEAK registers the build, then opens Steam or restarts it if it was already running. Choose **Library → PEAK → Play**. The app uses the same build script as the Terminal instructions below.
@@ -52,7 +65,7 @@ If a compatible `PEAK.app` is already in the library, **Build** repairs its Stea
 
 ## Build on a Mac
 
-1. Install PEAK on Windows using Steam. Copy the entire unmodified `steamapps/common/PEAK` directory to your Mac or an external drive. Keep `PEAK.exe`, `version.txt` and `PEAK_Data` together.
+1. Get the [supported Windows game files](#get-the-windows-game-files-on-a-mac).
 2. Download and unzip this repository. In Terminal, open the directory containing `build.sh`. Choose an APFS or Mac OS Extended destination for the app. For a first build, allow around 30 GB of free space **in addition to** the Windows copy. The build uses Apple's Command Line Tools and an internet connection.
 3. For a library install, open Steam on your Mac, sign in to the account that owns PEAK and open its Library page so Steam can cache its game information. Finish any running games, then build from your Windows copy.
 
